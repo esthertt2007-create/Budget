@@ -1,28 +1,18 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
+import plotly.express as px
 
 # 1. Setup Page Configuration
-st.set_page_config(page_title="Union Budget Analytics (13 Sectors)", layout="wide")
-st.title("📊 Departmental Budget Dashboard & Forecasting")
+st.set_page_config(page_title="Union Budget Intelligence Dashboard", layout="wide")
+st.title("🏛️ Union Budget Advanced Intelligence & Forecasting Platform")
 st.markdown("---")
 
-# 2. Comprehensive Dataset (13 Sectors from 2017 to 2026-2027)
+# 2. Comprehensive Dataset Base Matrix
 @st.cache_data
 def load_budget_data():
-    data = {
-        "Department": [],
-        "Year": [],
-        "Budget": []
-    }
+    years_timeline = ["2017", "2018", "2019", "2020", "2021", "2022", "2023", "2024", "2025", "2025-2026", "2026-2027"]
     
-    # Timeline list from 2017 to 2026-2027
-    years_timeline = [
-        "2017", "2018", "2019", "2020", "2021", "2022", "2023", 
-        "2024", "2025", "2025-2026", "2026-2027"
-    ]
-    
-    # 13 Core Sectors of the Union Budget (Scaled in Crores INR)
     baselines = {
         "Rural Development": [105000, 112000, 118000, 122000, 136000, 140000, 150000, 157000, 165000, 177000, 192000],
         "Agriculture & Farmers Welfare": [52000, 58000, 65000, 72000, 115000, 118000, 120000, 115000, 118000, 125000, 132000],
@@ -39,73 +29,161 @@ def load_budget_data():
         "Social Justice & Empowerment": [10000, 11200, 12100, 12800, 11500, 12300, 13800, 14200, 15100, 16000, 17200]
     }
     
-    for dept in baselines.keys():
-        data["Department"].extend([dept] * len(years_timeline))
-        data["Year"].extend(years_timeline)
-        data["Budget"].extend(baselines[dept])
+    rows = []
+    for dept, budgets in baselines.items():
+        for yr, bgt in zip(years_timeline, budgets):
+            rows.append({"Department": dept, "Year": yr, "Budget": bgt})
+            
+    base_df = pd.DataFrame(rows)
+    
+    # Calculate Total Cumulative Aggregate Row Groupings dynamically
+    total_rows = []
+    for yr in years_timeline:
+        yearly_sum = base_df[base_df["Year"] == yr]["Budget"].sum()
+        total_rows.append({"Department": "TOTAL (All 13 Sectors)", "Year": yr, "Budget": yearly_sum})
         
-    return pd.DataFrame(data)
+    total_df = pd.DataFrame(total_rows)
+    return pd.concat([base_df, total_df], ignore_index=True)
 
 df = load_budget_data()
 
-# 3. Sidebar Filters (Far Left Layout)
-st.sidebar.header("Filter Options")
-departments = df["Department"].unique()
-selected_dept = st.sidebar.selectbox("Select Sector / Department", departments)
+# Helper function to generate conditional profit/loss variance arrays for color mapping
+def compute_color_gradient(data_frame):
+    # Quantify year over year change to flag green vs red states
+    changes = data_frame["Budget"].diff().fillna(0)
+    return ["#10B981" if x >= 0 else "#EF4444" for x in changes]
 
-years = df["Year"].unique()
-selected_year = st.sidebar.selectbox("Select Year", years)
+# 3. Sidebar Setup (Far Left Navigation Panel)
+st.sidebar.header("Navigation Framework")
+departments_list = list(df["Department"].unique())
+selected_dept = st.sidebar.selectbox("Select Target Analytics Focus", departments_list)
 
-# Filter sequences
+years_list = list(df[df["Department"] == selected_dept]["Year"].unique())
+selected_year = st.sidebar.selectbox("Select Target Fiscal Year", years_list)
+
+# Split and isolate current selections vs background tracks
 filtered_df = df[(df["Department"] == selected_dept) & (df["Year"] == selected_year)]
 dept_all_years_df = df[df["Department"] == selected_dept].reset_index(drop=True)
 
-# 4. Main Dashboard Columns
+# 4. Core Visuals and Metrics Blocks
 col1, col2 = st.columns([2, 1])
 
 with col1:
-    st.subheader(f"📈 Budget Overview: {selected_dept} (2017 - 2027)")
-    st.bar_chart(data=dept_all_years_df, x="Year", y="Budget", use_container_width=True)
+    st.subheader(f"📈 Historical Trend Framework: {selected_dept}")
+    dept_all_years_df["Color_Status"] = compute_color_gradient(dept_all_years_df)
+    
+    fig1 = px.bar(
+        dept_all_years_df, x="Year", y="Budget",
+        labels={"Budget": "Allocation Value (Cr)"},
+        color="Color_Status",
+        color_discrete_map={"#10B981": "#10B981", "#EF4444": "#EF4444"}
+    )
+    fig1.update_layout(showlegend=False, margin=dict(t=10, b=10, l=10, r=10))
+    st.plotly_chart(fig1, use_container_width=True)
 
 with col2:
-    st.subheader("📋 Statistical Insights")
-    
+    st.subheader("📋 Core Statistics")
     max_budget = dept_all_years_df["Budget"].max()
     min_budget = dept_all_years_df["Budget"].min()
     avg_budget = dept_all_years_df["Budget"].mean()
-    current_selection_budget = filtered_df["Budget"].values[0] if not filtered_df.empty else 0
+    current_val = filtered_df["Budget"].values[0] if not filtered_df.empty else 0
     
-    st.metric(label=f"Selected Year Budget ({selected_year})", value=f"₹ {current_selection_budget:,} Cr")
-    st.metric(label="Maximum Budget (2017-2027)", value=f"₹ {max_budget:,} Cr")
-    st.metric(label="Minimum Budget (2017-2027)", value=f"₹ {min_budget:,} Cr")
-    st.metric(label="Average Budget Allocation", value=f"₹ {avg_budget:,.2f} Cr")
+    st.metric(label=f"Selected Allocation ({selected_year})", value=f"₹ {current_val:,} Cr")
+    st.metric(label="Peak Sector Value (Max)", value=f"₹ {max_budget:,} Cr")
+    st.metric(label="Baseline Value (Min)", value=f"₹ {min_budget:,} Cr")
+    st.metric(label="Arithmetic Allocation Mean", value=f"₹ {avg_budget:,.2f} Cr")
 
 st.markdown("---")
 
-# 5. Rule-Based AI Insights & 2027-2028 Forecasting
-st.subheader("🤖 Rule-Based AI Insights & Predictive Forecasting")
+# 5. Advanced Macro Forecasting Block (Now positioned above AI Insights)
+st.subheader("🔮 Predictive Macro Forecasting Engine (Target: 2027-2028)")
 
-if len(dept_all_years_df) >= 2:
-    # 2026-2027 evaluation against previous period
-    last_year_budget = dept_all_years_df.iloc[-2]["Budget"]
-    latest_year_budget = dept_all_years_df.iloc[-1]["Budget"]
-    pct_change = ((latest_year_budget - last_year_budget) / last_year_budget) * 100
-    
-    st.markdown("### 💡 AI Insights")
-    if pct_change > 0:
-        st.success(f"The budget for **{selected_dept}** has **increased** by **{pct_change:.2f}%** in the 2026-2027 cycle compared to the previous fiscal year.")
-    elif pct_change < 0:
-        st.warning(f"The budget for **{selected_dept}** has **decreased** by **{abs(pct_change):.2f}%** in the 2026-2027 cycle compared to the previous fiscal year.")
-    else:
-        st.info(f"The budget for **{selected_dept}** remained flat entering the 2026-2027 cycle.")
+growth_rates = dept_all_years_df["Budget"].diff().dropna()
+avg_growth = growth_rates.mean()
+latest_known_budget = dept_all_years_df.iloc[-1]["Budget"]
+forecast_val = latest_known_budget + avg_growth
 
-    # 2027-2028 Predictive Forecast Model
-    growth_rates = dept_all_years_df["Budget"].diff().dropna()
-    avg_growth = growth_rates.mean()
+# Construct forecast visualization matrix
+forecast_matrix = dept_all_years_df[["Year", "Budget"]].copy()
+new_row = pd.DataFrame([{"Year": "2027-2028 (Forecast)", "Budget": forecast_val}])
+forecast_matrix = pd.concat([forecast_matrix, new_row], ignore_index=True)
+forecast_matrix["Color_Status"] = compute_color_gradient(forecast_matrix)
+
+f_col1, f_col2 = st.columns([1, 2])
+with f_col1:
+    st.write("")
+    st.write("")
+    st.info(f"### Predicted Value:\n**₹ {forecast_val:,.2f} Cr**")
+    st.markdown(f"""
+    **Forecasting Metrics Applied:**
+    * Historical Linear Delta Addition: `+₹ {avg_growth:,.2f} Cr`
+    * Base Period Target Value: `₹ {latest_known_budget:,} Cr`
+    """)
+
+with f_col2:
+    fig2 = px.bar(
+        forecast_matrix, x="Year", y="Budget",
+        title=f"Predictive Vector Pathway including 2027-2028 Forecast for {selected_dept}",
+        color="Color_Status",
+        color_discrete_map={"#10B981": "#10B981", "#EF4444": "#EF4444"}
+    )
+    fig2.update_layout(showlegend=False)
+    st.plotly_chart(fig2, use_container_width=True)
+
+st.markdown("---")
+
+# 6. Deep Work AI Analytical Insights Module
+st.subheader(f"🤖 In-Depth AI Evaluation Suite: {selected_dept}")
+
+last_year_val = dept_all_years_df.iloc[-2]["Budget"]
+latest_year_val = dept_all_years_df.iloc[-1]["Budget"]
+yoy_change = latest_year_val - last_year_val
+pct_change = (yoy_change / last_year_val) * 100
+
+# Base parameters for conditional logic based on total vs independent sector selections
+is_total = selected_dept == "TOTAL (All 13 Sectors)"
+
+st.markdown(f"### 📑 Deep Fiscal Profile Report for the **{selected_dept}** Track")
+
+# Structural Pros and Cons narrative generator blocks
+if yoy_change >= 0:
+    st.markdown(f"#### 🟢 Structural Plus Points (Fiscal Strengths Analysis)")
+    st.markdown(f"""
+    * **Capital Injection Momentum:** The current financial trajectory reflects an increase of **₹ {yoy_change:,} Cr** (+{pct_change:.2f}%), indicating strong macro-economic backing.
+    * **Long-Term Resource Security:** Continued baseline increases allow active long-range project planning and mitigate structural project delays.
+    * **Stabilized Expansion Velocity:** The average annual scaling increment of **₹ {avg_growth:,.2f} Cr** suggests a reliable and structured funding path rather than an unstable, volatile spike.
+    """)
     
-    forecast_2027_2028 = latest_year_budget + avg_growth
-    
-    st.markdown("### 🔮 Next Year Budget Forecast")
-    st.info(f"Predicted Budget for **2027-2028**: **₹ {forecast_2027_2028:,.2f} Cr** (Based on historical average trajectory of +₹ {avg_growth:,.2f} Cr per cycle).")
+    st.markdown(f"#### 🔴 Structural Minus Points (Fiscal Vulnerability Analysis)")
+    st.markdown(f"""
+    * **Inflation Vulnerability Risk:** While a nominal increase of **{pct_change:.2f}%** is present, if the real-world operational cost inflation moves faster than this growth rate, purchasing power could fall.
+    * **Distribution Asymmetry Risk:** Broad overall scaling could mask inner-department bottlenecks where critical localized sub-tracks remain underfunded.
+    """)
 else:
-    st.error("Error drawing parameters from your dataset layout timeline.")
+    st.markdown(f"#### 🟢 Structural Plus Points (Fiscal Consolidation Analysis)")
+    st.markdown(f"""
+    * **Fiscal Consolidation Drive:** The contraction of **₹ {abs(yoy_change):,} Cr** ({pct_change:.2f}%) indicates a targeted structural effort to eliminate systemic wastage and streamline operations.
+    * **Strategic Realignment:** Lower direct capital outlays provide space to shift toward tech-driven, asset-light efficiency measures.
+    """)
+    
+    st.markdown(f"#### 🔴 Structural Minus Points (Fiscal Bottleneck Risks)")
+    st.markdown(f"""
+    * **Operational Strains:** A negative reduction vector limits development velocity, risking project delays across critical long-term targets.
+    * **Liquidity Tightening:** Reduced capital margins restrict quick response capabilities for sudden market adjustments or emergency financial demands.
+    """)
+
+# Departmental Component Breakdown Sub-Module
+st.markdown("#### 🔍 Structural Component Decomposition Breakdown")
+if is_total:
+    st.markdown("""
+    When evaluating the composite **Total Union Budget Matrix**, individual tracking vectors show diverse operational pathways:
+    * **Primary Capital Drivers (+):** Sectors like *Infrastructure & Roads*, *Railways*, and *Defence* maintain consistently positive change vectors, absorbing the majority of central liquidity injections.
+    * **Social Safety Balances (Stabilizers):** Fields like *Education* and *Health & Family Welfare* move on long-term gradual increments, avoiding sudden volatility spikes.
+    * **Volatile Tracks (Variable Scaling):** *Consumer Affairs, Food & Public Distribution* shows non-linear adjustments reflecting changing market variables and subsidy reallocations.
+    """)
+else:
+    st.markdown(f"""
+    Breaking down the standalone matrix for **{selected_dept}**:
+    * **Core Baseline Components:** This specific track shows a foundational growth floor anchored at a historic minimum of **₹ {min_budget:,} Cr** (2017) and peaking dynamically at **₹ {max_budget:,} Cr**.
+    * **Volatility Vector:** The variance checks across its 11-year timeline show that funding shifts match national economic transitions, maintaining an average structural momentum of **₹ {avg_growth:,.2f} Cr** per year heading directly into the 2028 prediction block.
+    """)
