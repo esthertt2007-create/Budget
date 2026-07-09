@@ -68,17 +68,19 @@ selected_dept = st.sidebar.selectbox("Select Core Analytics Focus", main_dropdow
 years_list = list(df["Year"].unique())
 selected_year = st.sidebar.selectbox("Select Target Fiscal Year", years_list, key="year_nav")
 
-# --- Separate Forecast Navigation Framework ---
-st.sidebar.markdown("---")
-st.sidebar.header("🔮 Forecast Navigation Panel")
-forecast_dropdown_options = ["COMBINED MATRIX VIEW", "TOTAL (All 13 Sectors Summed)"] + core_options
-selected_forecast_dept = st.sidebar.selectbox("Select Target Forecast Focus", forecast_dropdown_options, key="forecast_nav")
 
 # --- Custom Multi-Year Variance Tool Panel ---
 st.sidebar.markdown("---")
 st.sidebar.header("🔄 Custom Multi-Year Variance Tool")
 year_base = st.sidebar.selectbox("Select Base Year (Year A)", years_list, index=0)
 year_comp = st.sidebar.selectbox("Select Comparison Year (Year B)", years_list, index=len(years_list)-1)
+
+# --- Separate Forecast Navigation Framework ---
+st.sidebar.markdown("---")
+st.sidebar.header("🔮 Forecast Navigation Panel")
+forecast_dropdown_options = ["COMBINED MATRIX VIEW", "TOTAL (All 13 Sectors Summed)"] + core_options
+selected_forecast_dept = st.sidebar.selectbox("Select Target Forecast Focus", forecast_dropdown_options, key="forecast_nav")
+
 
 is_combined = selected_dept == "COMBINED MATRIX VIEW"
 is_total = selected_dept == "TOTAL (All 13 Sectors Summed)"
