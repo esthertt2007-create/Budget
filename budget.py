@@ -41,7 +41,7 @@ def load_budget_data():
             
     base_df = pd.DataFrame(rows)
     
-    # Generate cumulative total mapping rows dynamically
+    # Generate dynamic cumulative totals
     total_rows = []
     for yr in years_timeline:
         yearly_sum = base_df[base_df["Year"] == yr]["Budget"].sum()
@@ -52,25 +52,29 @@ def load_budget_data():
 
 df = load_budget_data()
 
-# Variance tracking calculation function for color status allocation
+# Helper for color-coding gradient changes
 def compute_color_gradient(data_frame):
     changes = data_frame["Budget"].diff().fillna(0)
     return ["#10B981" if x >= 0 else "#EF4444" for x in changes]
 
-# 3. Sidebar Filters Management Framework
-st.sidebar.header("Navigation Framework")
-
+# 3. Sidebar Navigation Framework Setup
+st.sidebar.header("📋 Core Dashboard Navigation")
 core_options = sorted(list(df["Department"].unique()))
 if "TOTAL (All 13 Sectors Summed)" in core_options:
     core_options.remove("TOTAL (All 13 Sectors Summed)")
-dropdown_menu_options = ["COMBINED MATRIX VIEW", "TOTAL (All 13 Sectors Summed)"] + core_options
+main_dropdown_options = ["COMBINED MATRIX VIEW", "TOTAL (All 13 Sectors Summed)"] + core_options
 
-selected_dept = st.sidebar.selectbox("Select Target Analytics Focus", dropdown_menu_options)
-
+selected_dept = st.sidebar.selectbox("Select Core Analytics Focus", main_dropdown_options, key="core_nav")
 years_list = list(df["Year"].unique())
-selected_year = st.sidebar.selectbox("Select Target Fiscal Year", years_list)
+selected_year = st.sidebar.selectbox("Select Target Fiscal Year", years_list, key="year_nav")
 
-# --- Dynamic Year-over-Year Cross Comparison Control Group ---
+# --- Separate Forecast Navigation Framework ---
+st.sidebar.markdown("---")
+st.sidebar.header("🔮 Forecast Navigation Panel")
+forecast_dropdown_options = ["COMBINED MATRIX VIEW", "TOTAL (All 13 Sectors Summed)"] + core_options
+selected_forecast_dept = st.sidebar.selectbox("Select Target Forecast Focus", forecast_dropdown_options, key="forecast_nav")
+
+# --- Custom Multi-Year Variance Tool Panel ---
 st.sidebar.markdown("---")
 st.sidebar.header("🔄 Custom Multi-Year Variance Tool")
 year_base = st.sidebar.selectbox("Select Base Year (Year A)", years_list, index=0)
@@ -84,7 +88,6 @@ col1, col2 = st.columns([2, 1])
 
 with col1:
     st.subheader(f"📈 Allocation Analysis: {selected_dept}")
-    
     if is_combined:
         combined_matrix_df = df[df["Department"] != "TOTAL (All 13 Sectors Summed)"]
         fig1 = px.bar(
@@ -108,7 +111,6 @@ with col1:
 
 with col2:
     st.subheader("📋 Contextual Statistics")
-    
     if is_combined:
         active_stats_df = df[df["Department"] == "TOTAL (All 13 Sectors Summed)"].reset_index(drop=True)
         selection_filter = df[(df["Department"] == "TOTAL (All 13 Sectors Summed)") & (df["Year"] == selected_year)]
@@ -127,42 +129,62 @@ with col2:
     st.metric(label=f"Baseline {label_prefix} Value (Min)", value=f"₹ {min_budget:,} Cr")
     st.metric(label=f"Arithmetic Allocation Mean", value=f"₹ {avg_budget:,.2f} Cr")
 
-# --- Dynamic Year Comparison Output Metric Banner ---
+# --- 5. Side-by-Side Dynamic Year Comparison Visual Framework ---
 st.markdown("---")
-st.subheader(f"⏱️ Custom Delta Computations: {year_base} vs {year_comp}")
+st.subheader(f"⏱️ Side-by-Side Cross-Year Evaluation: {year_base} vs {year_comp}")
 
-# Determine data subset based on target selection
 if is_combined:
-    comp_df = df[df["Department"] == "TOTAL (All 13 Sectors Summed)"]
+    comp_df = df[df["Department"] != "TOTAL (All 13 Sectors Summed)"]
+    summary_df = df[df["Department"] == "TOTAL (All 13 Sectors Summed)"]
+    val_a = summary_df[summary_df["Year"] == year_base]["Budget"].values[0]
+    val_b = summary_df[summary_df["Year"] == year_comp]["Budget"].values[0]
 else:
     comp_df = df[df["Department"] == selected_dept]
+    val_a = comp_df[comp_df["Year"] == year_base]["Budget"].values[0]
+    val_b = comp_df[comp_df["Year"] == year_comp]["Budget"].values[0]
 
-val_a = comp_df[comp_df["Year"] == year_base]["Budget"].values[0]
-val_b = comp_df[comp_df["Year"] == year_comp]["Budget"].values[0]
 absolute_drift = val_b - val_a
 percentage_drift = (absolute_drift / val_a) * 100 if val_a != 0 else 0
 
-cm1, cm2, cm3 = st.columns(3)
-with cm1:
-    st.metric(label=f"Base Allocation ({year_base})", value=f"₹ {val_a:,} Cr")
-with cm2:
-    st.metric(label=f"Target Allocation ({year_comp})", value=f"₹ {val_b:,} Cr")
-with cm3:
-    st.metric(
-        label="Calculated Drift Variance", 
-        value=f"₹ {absolute_drift:,} Cr", 
-        delta=f"{percentage_drift:+.2f}%"
-    )
+st.metric(
+    label=f"Net Allocation Trajectory Drift Summary ({selected_dept})", 
+    value=f"₹ {absolute_drift:,} Cr", 
+    delta=f"{percentage_drift:+.2f}%"
+)
+
+# Render side-by-side graphs for structural comparison
+g_col1, g_col2 = st.columns(2)
+
+with g_col1:
+    data_a = comp_df[comp_df["Year"] == year_base]
+    if is_combined:
+        fig_a = px.bar(data_a, x="Department", y="Budget", title=f"Budget Landscape ({year_base})", color="Department")
+    else:
+        fig_a = px.bar(data_a, x="Year", y="Budget", title=f"Allocation Focus ({year_base})")
+        fig_a.update_traces(marker_color="#10B981")
+    st.plotly_chart(fig_a, use_container_width=True)
+
+with g_col2:
+    data_b = comp_df[comp_df["Year"] == year_comp]
+    if is_combined:
+        fig_b = px.bar(data_b, x="Department", y="Budget", title=f"Budget Landscape ({year_comp})", color="Department")
+    else:
+        fig_b = px.bar(data_b, x="Year", y="Budget", title=f"Allocation Focus ({year_comp})")
+        marker_col = "#10B981" if absolute_drift >= 0 else "#EF4444"
+        fig_b.update_traces(marker_color=marker_col)
+    st.plotly_chart(fig_b, use_container_width=True)
 
 st.markdown("---")
 
-# 5. Advanced Macro Forecasting Block (With Funds Target Callout and Graph Indicators)
-st.subheader("🔮 Predictive Macro Forecasting Engine (Target: 2027-2028)")
+# --- 6. Advanced Macro Forecasting Block (Uses Separate Forecast Navigation) ---
+st.subheader(f"🔮 Predictive Macro Forecasting Engine (Target focus: {selected_forecast_dept})")
 
-if is_combined:
+is_forecast_combined = selected_forecast_dept == "COMBINED MATRIX VIEW"
+
+if is_forecast_combined:
     calc_target_df = df[df["Department"] == "TOTAL (All 13 Sectors Summed)"].reset_index(drop=True)
 else:
-    calc_target_df = df[df["Department"] == selected_dept].reset_index(drop=True)
+    calc_target_df = df[df["Department"] == selected_forecast_dept].reset_index(drop=True)
 
 growth_rates = calc_target_df["Budget"].diff().dropna()
 avg_growth = growth_rates.mean()
@@ -180,20 +202,18 @@ with f_col1:
     st.info(f"### Predicted Value:\n**₹ {forecast_val:,.2f} Cr**")
     st.markdown(f"""
     **Forecasting Metrics Applied:**
-    * Target Scope Array: `{"Cumulative Profile" if is_combined else selected_dept}`
+    * Target Scope Array: `{selected_forecast_dept}`
     * Historical Linear Delta Addition: `+₹ {avg_growth:,.2f} Cr`
     * Base Period Target Value: `₹ {latest_known_budget:,} Cr`
     """)
 
 with f_col2:
-    # Build standard bar visualization
     fig2 = px.bar(
         forecast_matrix, x="Year", y="Budget",
-        title=f"Predictive Vector Pathway featuring 2027-2028 Allocation Target for {selected_dept}",
+        title=f"Predictive Vector Pathway featuring 2027-2028 Allocation Target for {selected_forecast_dept}",
         color="Color_Status",
         color_discrete_map={"#10B981": "#10B981", "#EF4444": "#EF4444"}
     )
-    # Add a horizontal line to highlight the exact allocation ceiling target line clearly
     fig2.add_shape(
         type="line", x0=0, x1=len(forecast_matrix)-1, y0=forecast_val, y1=forecast_val,
         line=dict(color="Gold", width=3, dash="dashdot")
@@ -203,15 +223,15 @@ with f_col2:
 
 st.markdown("---")
 
-# 6. Deep Work AI Analytical Insights Module
-st.subheader("🤖 In-Depth AI Evaluation Suite")
+# 7. Deep Work AI Analytical Insights Module (Linked to the Active Forecast View)
+st.subheader(f"🤖 In-Depth AI Evaluation Suite (Analyzing: {selected_forecast_dept})")
 
 last_year_val = calc_target_df.iloc[-2]["Budget"]
 latest_year_val = calc_target_df.iloc[-1]["Budget"]
 yoy_change = latest_year_val - last_year_val
 pct_change = (yoy_change / last_year_val) * 100
 
-st.markdown(f"### 📑 Deep Fiscal Profile Report for: **{selected_dept}**")
+st.markdown(f"### 📑 Deep Fiscal Profile Report for: **{selected_forecast_dept}**")
 
 if yoy_change >= 0:
     st.markdown("#### 🟢 Structural Plus Points (Fiscal Strengths Analysis)")
@@ -238,7 +258,7 @@ else:
     """)
 
 st.markdown("#### 🔍 Structural Component Decomposition Breakdown")
-if is_combined or is_total:
+if is_forecast_combined or selected_forecast_dept == "TOTAL (All 13 Sectors Summed)":
     st.markdown("""
     * **Primary Capital Drivers (+):** *Infrastructure & Roads*, *Railways*, and *Defence* represent the system's primary liquidity columns, driving the majority of central resource additions.
     * **Systemic Balance Weights:** *Education* and *Health & Family Welfare* exhibit gradual, non-volatile adjustments, ensuring defensive social infrastructure stability.
@@ -246,6 +266,6 @@ if is_combined or is_total:
     """)
 else:
     st.markdown(f"""
-    * **Core Baseline Component Performance:** The operational path for **{selected_dept}** runs above a baseline minimum floor of **₹ {min_budget:,} Cr** established during the early tracking phases.
+    * **Core Baseline Component Performance:** The operational path for **{selected_forecast_dept}** runs above a baseline minimum floor of **₹ {min_budget:,} Cr** established during the early tracking phases.
     * **System Drift Momentum:** The structural trend analysis signals that long-term asset movements follow an average annual momentum index of **₹ {avg_growth:,.2f} Cr** heading directly into the 2027-2028 forecast window.
     """)
