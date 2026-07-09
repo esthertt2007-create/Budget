@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import plotly.express as px
+import plotly.graph_objects as go
 
 # 1. Setup Page Configuration
 st.set_page_config(page_title="Union Budget Intelligence Dashboard", layout="wide")
@@ -11,14 +12,12 @@ st.markdown("---")
 # 2. Comprehensive Multi-Year Dataset Matrix (2014-2015 to 2026-2027)
 @st.cache_data
 def load_budget_data():
-    # Timeline adjusted to start from 2014-2015
     years_timeline = [
         "2014-2015", "2015-2016", "2016-2017", "2017-2018", 
         "2018-2019", "2019-2020", "2020-2021", "2021-2022", "2022-2023", 
         "2023-2024", "2024-2025", "2025-2026", "2026-2027"
     ]
     
-    # 13 Primary Sectors with historical parameters starting from 2014-2015 (in Crores INR)
     baselines = {
         "Rural Development": [83000, 88000, 95000, 105000, 112000, 118000, 122000, 136000, 140000, 150000, 157000, 165000, 192000],
         "Agriculture & Farmers Welfare": [31000, 37000, 45000, 52000, 58000, 65000, 72000, 115000, 118000, 120000, 115000, 125000, 132000],
@@ -71,6 +70,12 @@ selected_dept = st.sidebar.selectbox("Select Target Analytics Focus", dropdown_m
 years_list = list(df["Year"].unique())
 selected_year = st.sidebar.selectbox("Select Target Fiscal Year", years_list)
 
+# --- Dynamic Year-over-Year Cross Comparison Control Group ---
+st.sidebar.markdown("---")
+st.sidebar.header("🔄 Custom Multi-Year Variance Tool")
+year_base = st.sidebar.selectbox("Select Base Year (Year A)", years_list, index=0)
+year_comp = st.sidebar.selectbox("Select Comparison Year (Year B)", years_list, index=len(years_list)-1)
+
 is_combined = selected_dept == "COMBINED MATRIX VIEW"
 is_total = selected_dept == "TOTAL (All 13 Sectors Summed)"
 
@@ -81,10 +86,7 @@ with col1:
     st.subheader(f"📈 Allocation Analysis: {selected_dept}")
     
     if is_combined:
-        combined_matrix_df = df[
-            (df["Department"] != "TOTAL (All 13 Sectors Summed)") & 
-            (df["Department"] != "TOTAL (All 13 Sectors)")
-        ]
+        combined_matrix_df = df[df["Department"] != "TOTAL (All 13 Sectors Summed)"]
         fig1 = px.bar(
             combined_matrix_df, x="Year", y="Budget", color="Department",
             labels={"Budget": "Allocation Value (Cr)"},
@@ -125,9 +127,36 @@ with col2:
     st.metric(label=f"Baseline {label_prefix} Value (Min)", value=f"₹ {min_budget:,} Cr")
     st.metric(label=f"Arithmetic Allocation Mean", value=f"₹ {avg_budget:,.2f} Cr")
 
+# --- Dynamic Year Comparison Output Metric Banner ---
+st.markdown("---")
+st.subheader(f"⏱️ Custom Delta Computations: {year_base} vs {year_comp}")
+
+# Determine data subset based on target selection
+if is_combined:
+    comp_df = df[df["Department"] == "TOTAL (All 13 Sectors Summed)"]
+else:
+    comp_df = df[df["Department"] == selected_dept]
+
+val_a = comp_df[comp_df["Year"] == year_base]["Budget"].values[0]
+val_b = comp_df[comp_df["Year"] == year_comp]["Budget"].values[0]
+absolute_drift = val_b - val_a
+percentage_drift = (absolute_drift / val_a) * 100 if val_a != 0 else 0
+
+cm1, cm2, cm3 = st.columns(3)
+with cm1:
+    st.metric(label=f"Base Allocation ({year_base})", value=f"₹ {val_a:,} Cr")
+with cm2:
+    st.metric(label=f"Target Allocation ({year_comp})", value=f"₹ {val_b:,} Cr")
+with cm3:
+    st.metric(
+        label="Calculated Drift Variance", 
+        value=f"₹ {absolute_drift:,} Cr", 
+        delta=f"{percentage_drift:+.2f}%"
+    )
+
 st.markdown("---")
 
-# 5. Advanced Macro Forecasting Block (Positioned Above AI Insights)
+# 5. Advanced Macro Forecasting Block (With Funds Target Callout and Graph Indicators)
 st.subheader("🔮 Predictive Macro Forecasting Engine (Target: 2027-2028)")
 
 if is_combined:
@@ -151,17 +180,23 @@ with f_col1:
     st.info(f"### Predicted Value:\n**₹ {forecast_val:,.2f} Cr**")
     st.markdown(f"""
     **Forecasting Metrics Applied:**
-    * Target Array: `{"Cumulative Profile" if is_combined else selected_dept}`
+    * Target Scope Array: `{"Cumulative Profile" if is_combined else selected_dept}`
     * Historical Linear Delta Addition: `+₹ {avg_growth:,.2f} Cr`
     * Base Period Target Value: `₹ {latest_known_budget:,} Cr`
     """)
 
 with f_col2:
+    # Build standard bar visualization
     fig2 = px.bar(
         forecast_matrix, x="Year", y="Budget",
-        title=f"Predictive Vector Pathway including 2027-2028 Forecast",
+        title=f"Predictive Vector Pathway featuring 2027-2028 Allocation Target for {selected_dept}",
         color="Color_Status",
         color_discrete_map={"#10B981": "#10B981", "#EF4444": "#EF4444"}
+    )
+    # Add a horizontal line to highlight the exact allocation ceiling target line clearly
+    fig2.add_shape(
+        type="line", x0=0, x1=len(forecast_matrix)-1, y0=forecast_val, y1=forecast_val,
+        line=dict(color="Gold", width=3, dash="dashdot")
     )
     fig2.update_layout(showlegend=False)
     st.plotly_chart(fig2, use_container_width=True)
